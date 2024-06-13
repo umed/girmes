@@ -1,0 +1,11 @@
+services:
+  testcontainer:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ./:/app/src
+    working_dir: /app/src
+    command: >
+      pwd &&
+      ls -la ./
