@@ -2,29 +2,60 @@ package logging
 
 import (
 	"context"
+	"log/slog"
 	"os"
-	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/umed/girmes/internal/util"
 )
 
-func NewLogger(level string) *zerolog.Logger {
-	logLevel := util.Must(zerolog.ParseLevel(level))
+const LevelFatal = slog.LevelError + 1
 
-	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.DateTime}).
-		With().
-		Timestamp().
-		Caller().
-		Logger()
-	logger.Level(logLevel)
-	return &logger
+type CustomLogger struct {
+	*slog.Logger
 }
 
-func WithLogger(ctx context.Context, logger *zerolog.Logger) context.Context {
-	return logger.WithContext(ctx)
+var DefaultLogger = NewLogger("debug")
+
+func (l *CustomLogger) Fatal(msg string, args ...any) {
+	l.Log(context.Background(), LevelFatal, msg, args...)
+	os.Exit(1)
 }
 
-func L(ctx context.Context) *zerolog.Logger {
-	return zerolog.Ctx(ctx)
+func ParseLevel(level string) (slog.Level, error) {
+	var logLevel slog.Level
+	err := logLevel.UnmarshalText([]byte(level))
+	return logLevel, err
+}
+
+func MustParseLevel(level string) slog.Level {
+	return util.Must(ParseLevel(level))
+}
+
+func customReplaceAttr(groups []string, a slog.Attr) slog.Attr {
+	if a.Key == slog.LevelKey && a.Value.Any().(slog.Level) == LevelFatal {
+		a.Value = slog.StringValue("FATAL")
+	}
+	return a
+}
+
+func NewLogger(level string) *CustomLogger {
+	return &CustomLogger{
+		Logger: slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+			Level:       MustParseLevel(level),
+			ReplaceAttr: customReplaceAttr,
+		})),
+	}
+}
+
+type ctxKey struct{}
+
+func Ctx(ctx context.Context, logger *CustomLogger) context.Context {
+	return context.WithValue(ctx, ctxKey{}, &logger)
+}
+
+func L(ctx context.Context) *CustomLogger {
+	if logger, ok := ctx.Value(ctxKey{}).(*CustomLogger); ok {
+		return logger
+	}
+	return DefaultLogger
 }

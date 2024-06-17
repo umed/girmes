@@ -4,6 +4,7 @@ package cli
 
 import (
 	"context"
+	"log/slog"
 	"os/exec"
 	"path"
 
@@ -15,9 +16,9 @@ func UserHomeDir(login string) string {
 }
 
 func AddUser(ctx context.Context, login string, group string) error {
-	logger := logging.L(ctx).With().Str("username", login).Logger()
+	logger := logging.L(ctx).With(slog.String("username", login))
 	if UserExists(ctx, login) {
-		logger.Debug().Msg("user exists")
+		logger.Debug("user exists")
 		return nil
 	}
 	cmd := exec.Command("adduser",
@@ -28,17 +29,17 @@ func AddUser(ctx context.Context, login string, group string) error {
 		login)
 
 	if err := cmd.Run(); err != nil {
-		logger.Err(err).Msg("failed to create user")
+		logger.Error("failed to execute command", logging.Err(err))
 		return ErrFailedToCreateUser
 	}
-	logger.Debug().Msg("created user")
+	logger.Debug("created user")
 	return nil
 }
 
 func UserExists(ctx context.Context, user string) bool {
 	cmd := exec.Command("id", "-u", user)
 	if err := cmd.Run(); err != nil {
-		logging.L(ctx).Debug().Err(err).Str("username", user).Msg("user does not exists")
+		logging.L(ctx).Debug("user does not exists", logging.Err(err), slog.String("username", user))
 		return false
 	}
 	return true
@@ -54,26 +55,26 @@ func AddUsers(ctx context.Context, users []string, group string) error {
 }
 
 func AddGroup(ctx context.Context, group string) error {
-	logger := logging.L(ctx).With().Str("group", group).Logger()
+	logger := logging.L(ctx).With(slog.String("group", group))
 	if GroupExists(ctx, group) {
-		logger.Debug().Msg("group exists")
+		logger.Debug("group exists")
 		return nil
 	}
 	cmd := exec.Command("addgroup", group)
 	out, err := cmd.Output()
 	if err != nil {
-		logger.Err(err).Msg("failed to create group")
+		logger.Error("failed to create group", logging.Err(err))
 		return ErrFailedToCreateGroup
 	}
-	logger.Debug().Str("output", string(out)).Msg("completed group creation")
+	logger.Debug("completed group creation", slog.String("output", string(out)))
 	return nil
 }
 
 func GroupExists(ctx context.Context, group string) bool {
-	logger := logging.L(ctx).With().Str("group", group).Logger()
+	logger := logging.L(ctx).With(slog.String("group", group))
 	cmd := exec.Command("getent", "group", group)
 	if err := cmd.Run(); err != nil {
-		logger.Debug().Err(err).Msg("group not exists")
+		logger.Debug("group not exists", logging.Err(err))
 		return false
 	}
 	return true

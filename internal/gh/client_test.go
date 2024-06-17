@@ -11,9 +11,9 @@ import (
 )
 
 func TestFetchLogins(t *testing.T) {
-	ctx := logging.WithLogger(context.TODO(), logging.NewLogger("debug"))
+	ctx := logging.Ctx(context.TODO(), logging.NewLogger("debug"))
 	client := gh.NewClient("")
-	logins, err := client.FetchLogins(ctx, "girmes")
+	logins, err := client.FetchMembers(ctx, "girmes")
 
 	require.NoError(t, err, "failed to fetch users")
 
@@ -21,7 +21,7 @@ func TestFetchLogins(t *testing.T) {
 }
 
 func TestFetchUsers(t *testing.T) {
-	ctx := logging.WithLogger(context.TODO(), logging.NewLogger("debug"))
+	ctx := logging.Ctx(context.TODO(), logging.NewLogger("debug"))
 	client := gh.NewClient("")
 	users, err := client.FetchUsers(ctx, "girmes")
 

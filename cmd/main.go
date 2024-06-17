@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"flag"
+	"log/slog"
+	"os"
 
 	"github.com/umed/girmes/config"
 	"github.com/umed/girmes/internal/cli"
@@ -21,28 +23,29 @@ func main() {
 	cfg := config.NewConfig()
 
 	logger := logging.NewLogger(cfg.LogLevel)
-	logger.Debug().Any("config", cfg).Msg("initialized")
+	logger.Debug("initialized", slog.Any("config", cfg))
 
-	if orgName == nil {
-		logger.Error().Msg("org name must be explicitly specified")
+	if len(*orgName) == 0 {
+		logger.Fatal("org name is not provided")
 	}
 
 	ctx := context.Background()
-	ctx = logging.WithLogger(ctx, logger)
+	ctx = logging.Ctx(ctx, logger)
 
 	client := gh.NewClient(cfg.GitHubAccessToken)
 	users := util.Must(client.FetchUsers(ctx, *orgName))
 
 	if err := cli.AddGroup(ctx, *orgName); err != nil {
-		logger.Fatal().Err(err).Msg("failed to create group")
+		logger.Error("failed to create group", logging.Err(err))
+		os.Exit(1)
 	}
 
 	for _, user := range users {
 		if err := cli.AddUser(ctx, user.Login, *orgName); err != nil {
-			logger.Fatal().Err(err).Msg("failed to create user")
+			logger.Fatal("failed to create user", logging.Err(err))
 		}
 		if err := cli.AddAuthorizedKeys(ctx, user.Login, user.Keys); err != nil {
-			logger.Fatal().Err(err).Msg("failed to add keys")
+			logger.Fatal("failed to add keys", logging.Err(err))
 		}
 	}
 }

@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path"
 
@@ -17,30 +18,30 @@ var (
 )
 
 func AddAuthorizedKeys(ctx context.Context, login string, keys []string) error {
-	logger := logging.L(ctx).With().Str("username", login).Logger()
+	logger := logging.L(ctx).With(slog.String("username", login))
 	if !UserExists(ctx, login) {
-		logger.Warn().Msg("user not exists")
+		logger.Warn("user not exists")
 		return ErrUserNotExists
 	}
 	sshDir := path.Join(UserHomeDir(login), ".ssh")
 	if err := os.MkdirAll(sshDir, os.ModePerm); err != nil {
-		logger.Err(err).Str("dir", sshDir).Msg("failed to create ssh directory")
+		logger.Error("failed to create ssh directory", logging.Err(err), slog.String("dir", sshDir))
 		return ErrFailedToAddKeys
 	}
 	authorizedKeysFile := path.Join(sshDir, "authorized_keys")
 	f, err := os.OpenFile(authorizedKeysFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o600)
 	if err != nil {
-		logger.Err(err).Str("keys_file", authorizedKeysFile).Msg("failed to open authorized keys file")
+		logger.Error("failed to open authorized keys file", logging.Err(err), slog.String("keys_file", authorizedKeysFile))
 		return ErrFailedToAddKeys
 	}
 	defer f.Close()
 
 	for _, key := range keys {
 		if _, err = f.WriteString(key + "\n"); err != nil {
-			logger.Err(err).Str("keys_file", authorizedKeysFile).Msg("failed to append keys")
+			logger.Error("failed to append keys", logging.Err(err), slog.String("keys_file", authorizedKeysFile))
 			return ErrFailedToAddKeys
 		}
 	}
-	logger.Debug().Msg("successfully added keys")
+	logger.Debug("successfully added keys")
 	return nil
 }

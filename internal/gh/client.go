@@ -3,8 +3,10 @@ package gh
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/google/go-github/v62/github"
+
 	"github.com/umed/girmes/internal/logging"
 )
 
@@ -25,19 +27,19 @@ func NewClient(token string) *Client {
 	}
 }
 
-func (client *Client) FetchLogins(ctx context.Context, orgName string) ([]string, error) {
-	logger := logging.L(ctx).With().Str("org", orgName).Logger()
-	logger.Debug().Msg("fetching logins")
+func (client *Client) FetchMembers(ctx context.Context, orgName string) ([]string, error) {
+	logger := logging.L(ctx).With(slog.String("org", orgName))
+	logger.Debug("fetching org's members")
 	users, _, err := client.githubClient.Organizations.ListMembers(ctx, orgName, nil)
 	if err != nil {
-		logging.L(ctx).Err(err).Str("org", orgName).Msg("failed to list members")
+		logger.Error("failed to list members", slog.String("org", orgName), logging.Err(err))
 		return nil, ErrGithubApiCallFailed
 	}
 	logins := make([]string, len(users))
 	for i := range users {
 		logins[i] = users[i].GetLogin()
 	}
-	logger.Debug().Strs("logins", logins).Msg("completed fetching logins")
+	logger.Debug("completed fetching org's members", slog.Any("logins", logins))
 	return logins, nil
 }
 
@@ -47,9 +49,9 @@ type User struct {
 }
 
 func (client *Client) FetchUsers(ctx context.Context, orgName string) ([]User, error) {
-	logger := logging.L(ctx).With().Str("org", orgName).Logger()
-	logger.Debug().Msg("fetching users")
-	logins, err := client.FetchLogins(ctx, orgName)
+	logger := logging.L(ctx).With(slog.String("org", orgName))
+	logger.Debug("fetching users")
+	logins, err := client.FetchMembers(ctx, orgName)
 	if err != nil {
 		return nil, err
 	}
@@ -59,31 +61,31 @@ func (client *Client) FetchUsers(ctx context.Context, orgName string) ([]User, e
 		users[i].Login = login
 		users[i].Keys, err = client.FetchKeys(ctx, login)
 		if err != nil {
-			logger.Warn().Str("user", login).Msg("failed to acquire keys, will be skipped")
+			logger.Warn("failed to acquire keys, will be skipped", slog.String("user", login))
 			fails++
 			continue
 		}
 	}
 	if fails == len(logins) {
-		logger.Error().Msg("failed to get keys for any user")
+		logger.Error("failed to get keys for any user")
 		return nil, ErrGithubApiCallFailed
 	}
-	logger.Debug().Msg("completed fetching users")
+	logger.Debug("completed fetching users")
 	return users, nil
 }
 
 func (client *Client) FetchKeys(ctx context.Context, user string) ([]string, error) {
-	logger := logging.L(ctx).With().Str("username", user).Logger()
-	logger.Debug().Msg("fetching keys")
+	logger := logging.L(ctx).With(slog.String("username", user))
+	logger.Debug("fetching keys")
 	keys, _, err := client.githubClient.Users.ListKeys(ctx, user, nil)
 	if err != nil {
-		logging.L(ctx).Err(err)
+		logger.Error("failed to list user's keys", logging.Err(err))
 		return nil, ErrGithubApiCallFailed
 	}
 	keysArray := make([]string, len(keys))
 	for i := range keys {
 		keysArray[i] = keys[i].GetKey()
 	}
-	logger.Debug().Int("number", len(keys)).Msg("completed fetching keys")
+	logger.Debug("completed fetching keys", slog.Int("number", len(keys)))
 	return keysArray, nil
 }
